@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LAN File &amp; Snippet Share</title>
+    <meta name="description" content="Instant drag-and-drop file and snippet sharing with public boards, private PIN-protected rooms, user attribution, and soft-delete protection." />
+    <meta property="og:title" content="LAN File &amp; Snippet Share" />
+    <meta property="og:description" content="Instant drag-and-drop file and snippet sharing with public boards, private PIN-protected rooms, user attribution, and soft-delete protection." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Gracefully prevent benign WebSocket disconnection errors from showing an unhandled rejection overlay
+      (function() {
+        function shouldSuppress(msg) {
+          if (!msg) return false;
+          var str = String(msg).toLowerCase();
+          return str.indexOf('websocket') !== -1 || str.indexOf('vite-hmr') !== -1;
+        }
+
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event && event.reason;
+          var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+          if (shouldSuppress(msg)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          }
+        }, true);
+
+        window.addEventListener('error', function (event) {
+          var msg = (event && (event.message || '')) || '';
+          if (shouldSuppress(msg)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

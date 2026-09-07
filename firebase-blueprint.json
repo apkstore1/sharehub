@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "board": {
+      "title": "Board",
+      "description": "Public board or private room for file and text sharing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the board" },
+        "name": { "type": "string", "description": "Board title or room label" },
+        "type": { "type": "string", "enum": ["public", "private"], "description": "Board privacy type" },
+        "pin": { "type": "string", "description": "Optional PIN for private room" },
+        "description": { "type": "string", "description": "Optional board purpose" },
+        "creatorId": { "type": "string", "description": "Creator user ID" },
+        "creatorName": { "type": "string", "description": "Creator display name" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in epoch ms" }
+      },
+      "required": ["id", "name", "type", "createdAt"]
+    },
+    "item": {
+      "title": "SharedItem",
+      "description": "Shared text snippet, code, link, or uploaded file metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the item" },
+        "targetId": { "type": "string", "description": "Target board ID" },
+        "type": { "type": "string", "enum": ["text", "code", "link", "file"], "description": "Item content type" },
+        "content": { "type": "string", "description": "Text, code snippet, or description" },
+        "language": { "type": "string", "description": "Programming language for code snippets" },
+        "fileUrl": { "type": "string", "description": "URL or base64 data for uploaded file" },
+        "fileName": { "type": "string", "description": "Original file name" },
+        "fileSize": { "type": "number", "description": "File size in bytes" },
+        "fileMime": { "type": "string", "description": "File MIME content type" },
+        "creatorId": { "type": "string", "description": "Creator user ID" },
+        "creatorName": { "type": "string", "description": "Creator display name" },
+        "senderIp": { "type": "string", "description": "Uploader IP or network identifier" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in epoch ms" },
+        "isDeleted": { "type": "boolean", "description": "Whether item is moved to trash" },
+        "deletedAt": { "type": "number", "description": "Deletion timestamp in epoch ms" },
+        "deletedBy": { "type": "string", "description": "User or admin who deleted the item" }
+      },
+      "required": ["id", "targetId", "type", "creatorId", "creatorName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/boards/{boardId}": {
+      "schema": "board",
+      "description": "Collection of sharing boards and private rooms"
+    },
+    "/items/{itemId}": {
+      "schema": "item",
+      "description": "Collection of shared snippets and files metadata across boards"
+    }
+  }
+}
