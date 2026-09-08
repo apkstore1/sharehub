@@ -18,11 +18,22 @@ let firestoreDb: Firestore | null = null;
 let isConnected = false;
 let projectId = '';
 
+function resolveProjectFile(fileName: string): string {
+  const candidates = [
+    path.resolve(process.cwd(), fileName),
+    path.resolve(process.cwd(), '..', fileName),
+    path.resolve(__dirname, fileName),
+    path.resolve(__dirname, '..', fileName),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+}
+
 export async function initServerFirestore(): Promise<boolean> {
   try {
-    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    const configPath = resolveProjectFile('firebase-applet-config.json');
     if (!fs.existsSync(configPath)) {
-      console.warn('[Firestore] firebase-applet-config.json not found.');
+      console.warn(`[Firestore] firebase-applet-config.json not found. Checked: ${configPath}`);
       return false;
     }
 
