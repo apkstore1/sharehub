@@ -352,8 +352,8 @@ export default function App() {
         }}
         isOpenMobile={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
-        userProfile={userProfile}
-        presence={presence}
+        presenceCount={presence.count}
+        isConnected={isConnected}
       />
 
       {/* Main Column */}
