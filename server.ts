@@ -26,9 +26,13 @@ dotenv.config();
 const PORT = 3000;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'admin123';
 
-// Prepare directories
-const dataDir = path.join(process.cwd(), 'data');
-const uploadsDir = path.join(process.cwd(), 'uploads');
+// Resolve writable application data independently from the process working directory.
+// Production hosts may start the bundled server from the dist directory.
+const appRoot = fs.existsSync(path.join(process.cwd(), 'package.json'))
+  ? process.cwd()
+  : path.resolve(__dirname, '..');
+const dataDir = path.join(appRoot, 'data');
+const uploadsDir = path.join(appRoot, 'uploads');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
@@ -373,10 +377,13 @@ async function startServer() {
       };
 
       if (isFirestoreActive()) {
-        await saveBoardToFirestore({
+        const savedToCloud = await saveBoardToFirestore({
           ...newBoard,
           pin: cleanPin,
         });
+        if (!savedToCloud) {
+          console.warn(`[Boards] Cloud save failed for ${id}; keeping SQLite copy.`);
+        }
       }
 
       // Notify clients about new board
@@ -555,7 +562,10 @@ async function startServer() {
       };
 
       if (isFirestoreActive()) {
-        await saveItemToFirestore(newItem);
+        const savedToCloud = await saveItemToFirestore(newItem);
+        if (!savedToCloud) {
+          console.warn(`[Items] Cloud save failed for ${id}; keeping SQLite copy.`);
+        }
       }
 
       // Broadcast to room clients
