@@ -28,9 +28,12 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || 'admin123';
 
 // Resolve writable application data independently from the process working directory.
 // Production hosts may start the bundled server from the dist directory.
-const appRoot = fs.existsSync(path.join(process.cwd(), 'package.json'))
-  ? process.cwd()
-  : path.resolve(__dirname, '..');
+  // Use deployment-independent roots. The bundled production server is CommonJS,
+  // while the dev server runs as ESM, so __dirname is not available consistently.
+  const runtimeRoot = process.cwd();
+  const appRoot = fs.existsSync(path.join(runtimeRoot, 'package.json'))
+    ? runtimeRoot
+    : path.resolve(runtimeRoot, '..');
 const dataDir = path.join(appRoot, 'data');
 const uploadsDir = path.join(appRoot, 'uploads');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
