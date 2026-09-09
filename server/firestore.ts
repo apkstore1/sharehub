@@ -19,11 +19,12 @@ let isConnected = false;
 let projectId = '';
 
 function resolveProjectFile(fileName: string): string {
+  // Keep lookup compatible with both tsx/ESM development and the bundled
+  // CommonJS production server; __dirname is not defined in the former.
+  const runtimeRoot = process.cwd();
   const candidates = [
-    path.resolve(process.cwd(), fileName),
-    path.resolve(process.cwd(), '..', fileName),
-    path.resolve(__dirname, fileName),
-    path.resolve(__dirname, '..', fileName),
+    path.resolve(runtimeRoot, fileName),
+    path.resolve(runtimeRoot, '..', fileName),
   ];
 
   return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
