@@ -230,6 +230,11 @@ export default function App() {
       }
     };
 
+    if (!socket) {
+      setIsConnected(false);
+      return;
+    }
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('item:created', onItemCreated);
