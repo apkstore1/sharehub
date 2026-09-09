@@ -169,7 +169,7 @@ const upload = multer({
   limits: { fileSize: 150 * 1024 * 1024 }, // 150 MB file size limit
 });
 
-async function startServer() {
+export async function createApp() {
   await setupDatabase();
   await initServerFirestore();
 
@@ -942,12 +942,26 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening at http://0.0.0.0:${PORT}`);
-  });
+  return { app, httpServer };
 }
 
-startServer().catch((err) => {
-  console.error('Fatal server startup error:', err);
-  process.exit(1);
-});
+let appPromise: ReturnType<typeof createApp> | null = null;
+
+export default async function handler(req: Request, res: Response) {
+  if (!appPromise) appPromise = createApp();
+  const { app } = await appPromise;
+  return app(req, res);
+}
+
+if (!process.env.VERCEL) {
+  createApp()
+    .then(({ httpServer }) => {
+      httpServer.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server listening at http://0.0.0.0:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('Fatal server startup error:', err);
+      process.exit(1);
+    });
+}

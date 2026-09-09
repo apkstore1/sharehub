@@ -3,7 +3,10 @@ import { UserProfile } from '../types';
 
 let socket: Socket | null = null;
 
-export function getSocket(): Socket {
+export function getSocket(): Socket | null {
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app')) {
+    return null;
+  }
   if (!socket) {
     socket = io({
       autoConnect: true,
@@ -27,6 +30,7 @@ export function getSocket(): Socket {
 
 export function joinBoardRoom(boardId: string, profile: UserProfile) {
   const s = getSocket();
+  if (!s) return;
   if (s.connected) {
     s.emit('join_board', {
       boardId,
@@ -52,7 +56,7 @@ export function joinBoardRoom(boardId: string, profile: UserProfile) {
 
 export function leaveBoardRoom() {
   const s = getSocket();
-  if (s.connected) {
+  if (s?.connected) {
     s.emit('leave_board');
   }
 }
