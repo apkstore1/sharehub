@@ -20,6 +20,16 @@ import {
   getItemFromFirestore,
   fetchTrashFromFirestore,
 } from './server/firestore';
+import {
+  initNeon,
+  isNeonActive,
+  neonBoards,
+  neonBoard,
+  neonItems,
+  neonCreateBoard,
+  neonCreateItem,
+  neonTrash,
+} from './server/neon';
 
 dotenv.config();
 
@@ -173,7 +183,12 @@ const upload = multer({
 
 export async function createApp() {
   await setupDatabase();
-  await initServerFirestore();
+  if (isNeonActive()) {
+    await initNeon();
+    console.log('[Neon] Production persistence enabled');
+  } else {
+    await initServerFirestore();
+  }
 
   const app = express();
   const httpServer = http.createServer(app);
@@ -279,6 +294,10 @@ export async function createApp() {
   // Get all boards and rooms
   app.get('/api/boards', async (req: Request, res: Response) => {
     try {
+      if (isNeonActive()) {
+        const cloudBoards = await neonBoards();
+        if (cloudBoards) return res.json({ boards: cloudBoards, database: 'neon' });
+      }
       if (isFirestoreActive()) {
         const cloudBoards = await fetchBoardsFromFirestore();
         if (cloudBoards && cloudBoards.length > 0) {
@@ -362,6 +381,13 @@ export async function createApp() {
       const cleanPin = boardType === 'private' && pin ? String(pin).trim() : null;
       const now = Date.now();
 
+      if (isNeonActive()) {
+        const newBoard = { id, name: name.trim(), type: boardType, hasPin: Boolean(cleanPin), description: description || '', creatorId: creatorId || 'anon', creatorName: creatorName || 'Anonymous', createdAt: now, itemCount: 0 };
+        await neonCreateBoard({ ...newBoard, pin: cleanPin });
+        io.emit('board:created', newBoard);
+        return res.status(201).json({ board: newBoard });
+      }
+
       db.run(
         `INSERT INTO boards (id, name, type, pin, description, creator_id, creator_name, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -437,7 +463,10 @@ export async function createApp() {
       const includeDeleted = req.query.includeDeleted === 'true';
 
       let board: any = null;
-      if (isFirestoreActive()) {
+      if (isNeonActive()) {
+        board = await neonBoard(boardId);
+      }
+      if (!board && isFirestoreActive()) {
         board = await getBoardFromFirestore(boardId);
       }
       if (!board) {
@@ -456,6 +485,10 @@ export async function createApp() {
         }
       }
 
+      if (isNeonActive()) {
+        const neonItemRows = await neonItems(boardId, includeDeleted);
+        if (neonItemRows) return res.json({ items: neonItemRows, database: 'neon' });
+      }
       if (isFirestoreActive()) {
         const cloudItems = await fetchItemsFromFirestore(boardId, includeDeleted);
         if (cloudItems) {
@@ -525,6 +558,13 @@ export async function createApp() {
       const id = `item_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const now = Date.now();
       const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+
+      if (isNeonActive()) {
+        const newItem = { id, targetId, type: type || 'text', content, language: language || null, fileUrl: null, fileName: null, fileSize: content.length, fileMime: 'text/plain', creatorId: creatorId || 'anon', creatorName: creatorName || 'Anonymous', senderIp: ip, createdAt: now, isDeleted: false };
+        await neonCreateItem(newItem);
+        io.to(`room:${targetId}`).emit('item:created', newItem);
+        return res.status(201).json({ item: newItem });
+      }
 
       db.run(
         `INSERT INTO items (
