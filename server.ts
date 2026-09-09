@@ -182,11 +182,17 @@ const upload = multer({
 });
 
 export async function createApp() {
-  await setupDatabase();
+  const production = Boolean(process.env.VERCEL);
+  if (production && !isNeonActive()) {
+    throw new Error('DATABASE_URL is required on Vercel; refusing to use ephemeral SQLite');
+  }
+  if (!production) {
+    await setupDatabase();
+  }
   if (isNeonActive()) {
     await initNeon();
     console.log('[Neon] Production persistence enabled');
-  } else {
+  } else if (!production && process.env.ENABLE_FIRESTORE === 'true') {
     await initServerFirestore();
   }
 
@@ -282,13 +288,16 @@ export async function createApp() {
   // --- API ROUTES ---
 
   // Health check
-  app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({
-      status: 'ok',
-      time: Date.now(),
-      cloudDatabase: isFirestoreActive() ? 'connected' : 'offline',
-      projectId: getFirestoreProjectId(),
-    });
+  app.get('/api/health', async (_req: Request, res: Response) => {
+    try {
+      if (isNeonActive()) {
+        return res.json({ ok: true, environment: process.env.VERCEL ? 'production' : 'development', database: 'neon', databaseConnected: true, time: Date.now() });
+      }
+      return res.status(process.env.VERCEL ? 503 : 200).json({ ok: !process.env.VERCEL, environment: process.env.VERCEL ? 'production' : 'development', database: 'sqlite', databaseConnected: !process.env.VERCEL, error: process.env.VERCEL ? 'DATABASE_URL is not configured' : undefined, time: Date.now() });
+    } catch (error) {
+      console.error('[Health] database check failed:', error);
+      return res.status(503).json({ ok: false, environment: process.env.VERCEL ? 'production' : 'development', database: isNeonActive() ? 'neon' : 'unknown', databaseConnected: false, error: 'Database initialization failed' });
+    }
   });
 
   // Get all boards and rooms
@@ -373,7 +382,9 @@ export async function createApp() {
         }
       }
 
-      const existing = queryOne('SELECT id FROM boards WHERE id = ?', [id]);
+      const existing = isNeonActive()
+        ? await neonBoard(id)
+        : queryOne('SELECT id FROM boards WHERE id = ?', [id]);
       if (existing) {
         return res.status(400).json({ error: `Board or room with id "${id}" already exists.` });
       }
@@ -433,10 +444,11 @@ export async function createApp() {
     if (!roomId) return res.status(400).json({ error: 'Room ID required' });
 
     let room: any = null;
-    if (isFirestoreActive()) {
+    if (isNeonActive()) {
+      room = await neonBoard(roomId);
+    } else if (isFirestoreActive()) {
       room = await getBoardFromFirestore(roomId);
-    }
-    if (!room) {
+    } else {
       const sqliteRoom = queryOne('SELECT pin, type FROM boards WHERE id = ?', [roomId]);
       if (sqliteRoom) room = { pin: sqliteRoom.pin, type: sqliteRoom.type };
     }
@@ -539,10 +551,11 @@ export async function createApp() {
 
       // Check board existence and PIN if private
       let board: any = null;
-      if (isFirestoreActive()) {
+      if (isNeonActive()) {
+        board = await neonBoard(targetId);
+      } else if (isFirestoreActive()) {
         board = await getBoardFromFirestore(targetId);
-      }
-      if (!board) {
+      } else {
         board = queryOne('SELECT * FROM boards WHERE id = ?', [targetId]);
       }
 
@@ -638,10 +651,11 @@ export async function createApp() {
 
       // Check board existence and PIN if private
       let board: any = null;
-      if (isFirestoreActive()) {
+      if (isNeonActive()) {
+        board = await neonBoard(targetId);
+      } else if (isFirestoreActive()) {
         board = await getBoardFromFirestore(targetId);
-      }
-      if (!board) {
+      } else {
         board = queryOne('SELECT * FROM boards WHERE id = ?', [targetId]);
       }
 
