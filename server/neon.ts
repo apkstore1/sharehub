@@ -1,7 +1,15 @@
 import { Pool } from 'pg';
 
-const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 5, ssl: { rejectUnauthorized: false } }) : null;
+const databaseUrl = process.env.DATABASE_URL;
+const pool = databaseUrl
+  ? new Pool({ connectionString: databaseUrl, max: 5, ssl: { rejectUnauthorized: false } })
+  : null;
 let ready = false;
+let initPromise: Promise<boolean> | null = null;
+
+pool?.on('error', (error) => {
+  console.error('[Neon] pool error:', error);
+});
 
 const defaults = [
   ['general', 'General Share', 'public', 'Instant office-wide clipboard, quick announcements, and files'],
@@ -13,14 +21,60 @@ const defaults = [
 export function isNeonActive() { return Boolean(pool); }
 
 export async function initNeon() {
-  if (!pool || ready) return Boolean(pool);
-  await pool.query(`CREATE TABLE IF NOT EXISTS boards (id text PRIMARY KEY, name text NOT NULL, type text NOT NULL, pin text, description text DEFAULT '', creator_id text, creator_name text, created_at bigint NOT NULL)`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS items (id text PRIMARY KEY, target_id text NOT NULL, type text NOT NULL, content text, language text, file_url text, file_name text, file_size bigint, file_mime text, creator_id text NOT NULL, creator_name text NOT NULL, sender_ip text, created_at bigint NOT NULL, is_deleted boolean DEFAULT false, deleted_at bigint, deleted_by text)`);
-  for (const [id, name, type, description] of defaults) {
-    await pool.query(`INSERT INTO boards (id,name,type,description,creator_id,creator_name,created_at) VALUES ($1,$2,$3,$4,'system','System',$5) ON CONFLICT (id) DO NOTHING`, [id, name, type, description, Date.now()]);
+  if (!pool) {
+    throw new Error('DATABASE_URL is required for Neon production persistence');
   }
-  ready = true;
-  return true;
+  if (ready) return true;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS boards (
+        id text PRIMARY KEY,
+        name text NOT NULL,
+        type text NOT NULL DEFAULT 'public',
+        pin text,
+        description text NOT NULL DEFAULT '',
+        creator_id text NOT NULL DEFAULT 'system',
+        creator_name text NOT NULL DEFAULT 'System',
+        created_at bigint NOT NULL
+      )`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS items (
+        id text PRIMARY KEY,
+        target_id text NOT NULL,
+        type text NOT NULL,
+        content text,
+        language text,
+        file_url text,
+        file_name text,
+        file_size bigint,
+        file_mime text,
+        creator_id text NOT NULL,
+        creator_name text NOT NULL,
+        sender_ip text,
+        created_at bigint NOT NULL,
+        is_deleted boolean NOT NULL DEFAULT false,
+        deleted_at bigint,
+        deleted_by text
+      )`);
+      await pool.query('CREATE INDEX IF NOT EXISTS items_target_id_idx ON items (target_id, created_at DESC)');
+      for (const [id, name, type, description] of defaults) {
+        await pool.query(
+          `INSERT INTO boards (id, name, type, description, creator_id, creator_name, created_at)
+           VALUES ($1, $2, $3, $4, 'system', 'System', $5)
+           ON CONFLICT (id) DO NOTHING`,
+          [id, name, type, description, Date.now()],
+        );
+      }
+      ready = true;
+      return true;
+    } catch (error) {
+      console.error('[Neon] schema initialization failed:', error);
+      initPromise = null;
+      throw error;
+    }
+  })();
+  return initPromise;
 }
 
 export async function neonBoards() {
